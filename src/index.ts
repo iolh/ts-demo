@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import http from "http";
 
+type AsyncFunc = (...args: any[]) => Promise<any>;
+
 export enum METADATA_KEY {
   METHOD = 'ioc:method',
   PATH = 'ioc:path',
@@ -15,9 +17,9 @@ export enum REQUEST_METHOD {
 export const methodDecoratorFactory = (method: string) => {
   return (path: string): MethodDecorator => {
     return (_target, _key, descriptor) => {
-      // 在方法实现上注册 ioc:method - 请求方法 的元数据
+      // 在类方法实现上注册 ioc:method - 请求方法 的元数据
       Reflect.defineMetadata(METADATA_KEY.METHOD, method, descriptor.value!);
-      // 在方法实现上注册 ioc:path - 请求路径 的元数据
+      // 在类方法实现上注册 ioc:path - 请求路径 的元数据
       Reflect.defineMetadata(METADATA_KEY.PATH, path, descriptor.value!);
     };
   };
@@ -26,25 +28,20 @@ export const methodDecoratorFactory = (method: string) => {
 export const Get = methodDecoratorFactory(REQUEST_METHOD.GET);
 export const Post = methodDecoratorFactory(REQUEST_METHOD.POST);
 
-
 export const Controller = (path?: string): ClassDecorator => {
   return (target) => {
     Reflect.defineMetadata(METADATA_KEY.PATH, path ?? '', target);
   };
 };
 
-
-
-type AsyncFunc = (...args: any[]) => Promise<any>;
-
 interface ICollected {
   path: string;
   requestMethod: string;
   requestHandler: AsyncFunc;
 }
-
 export const routerFactory = <T extends object>(ins: T): ICollected[] => {
   const prototype = Reflect.getPrototypeOf(ins) as any;
+  // 提取类（Controller）上 ioc:path - 请求路径 的元数据
   const rootPath = <string>(
     Reflect.getMetadata(METADATA_KEY.PATH, prototype.constructor)
   );
@@ -55,8 +52,11 @@ export const routerFactory = <T extends object>(ins: T): ICollected[] => {
 
   const collected = methods.map((m) => {
     const requestHandler = prototype[m];
+
+    // 提取类方法（GET，POST）上 ioc:method - 请求方法 的元数据
     const path = <string>Reflect.getMetadata(METADATA_KEY.PATH, requestHandler);
 
+    // 提取类方法（GET，POST）上 ioc:method - 请求路径 的元数据
     const requestMethod = <string>(
       Reflect.getMetadata(METADATA_KEY.METHOD, requestHandler).replace(
         'ioc:',
@@ -64,6 +64,7 @@ export const routerFactory = <T extends object>(ins: T): ICollected[] => {
       )
     );
 
+    // 组装元数据
     return {
       path: `${rootPath}${path}`,
       requestMethod,
@@ -72,7 +73,6 @@ export const routerFactory = <T extends object>(ins: T): ICollected[] => {
   });
   return collected;
 };
-
 
 @Controller('/user')
 class UserController {
@@ -103,12 +103,13 @@ class UserController {
   }
 }
 
+//  
 const collected = routerFactory(new UserController());
-
 
 http
   .createServer((req, res) => {
     for (const info of collected) {
+      // 根据请求方法，请求路径，进行路由匹配，执行对应的请求处理函数
       if (
         req.url === info.path &&
         req.method === info.requestMethod.toLocaleUpperCase()
@@ -126,3 +127,7 @@ http
     console.log('GET /user/list at http://localhost:3000/user/list \n');
     console.log('POST /user/add at http://localhost:3000/user/add \n');
   });
+
+// what：实现 nest 基于装饰器的路由转发功能
+// how：核心在于元数据的注册、提取、组装以及路由匹配，元数据包含了路由的方法，请求路径以及请求处理函数
+// why：装饰器模式的实践

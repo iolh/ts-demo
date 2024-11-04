@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx ./index.ts",
+    "dev": "tsx ./src/ioc.ts",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
