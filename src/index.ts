@@ -83,11 +83,11 @@ class UserController {
       code: 10000,
       data: [
         {
-          name: 'linbudu',
+          name: '如常',
           age: 18,
         },
         {
-          name: '林不渡',
+          name: '如梦',
           age: 28,
         },
       ],
